@@ -3,185 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestionnaire de Menu & Coûts</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.min.js"></script>
+    <title>CGI Analytics - Premium Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-top: 20px; }
-        .container { max-width: 900px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
-        .search-results { position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f3f4f6; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .input-premium { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 2px solid transparent; background: #f9fafb; }
+        .input-premium:focus { border-color: #3b82f6; background: white; outline: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .suggestion-box { max-height: 400px; overflow-y: auto; scrollbar-width: thin; }
+        .card-hover:hover { transform: translateY(-4px); transition: transform 0.3s ease; }
     </style>
 </head>
-<body>
+<body class="min-h-screen text-slate-800">
 
-<div class="container">
-    <h2 class="text-center mb-4">Calculateur de Coût de Revient</h2>
-
-    <div class="card mb-4 border-primary">
-        <div class="card-body">
-            <h5 class="card-title">1. Charger la Base Article (Excel)</h5>
-            <input type="file" id="uploadExcel" class="form-control" accept=".xlsx, .xls">
-            <small class="text-muted">Le fichier doit avoir des colonnes : "Code", "Article", "Prix".</small>
+    <div id="setupScreen" class="fixed inset-0 z-[100] gradient-bg flex items-center justify-center p-6 hidden">
+        <div class="bg-white p-10 rounded-[40px] shadow-2xl max-w-md w-full text-center">
+            <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 text-3xl">🚀</div>
+            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">Bienvenue, Marwan</h2>
+            <p class="text-slate-500 mb-8">Activez votre intelligence commerciale en important votre base CGI.</p>
+            <input type="file" id="excelFile" accept=".xlsx" class="block w-full text-sm text-slate-400 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer mb-8">
+            <button onclick="handleFileUpload()" class="w-full bg-slate-900 text-white font-bold py-5 rounded-3xl shadow-xl active:scale-95 transition-all">Lancer l'Application</button>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <label class="form-label">Nom du Plat</label>
-            <input type="text" id="platNom" class="form-control" placeholder="Ex: Pizza Margherita">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Prix de Vente TTC (€)</label>
-            <input type="number" id="pvTtc" class="form-control" value="0" oninput="calculerTout()">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Remise (%)</label>
-            <input type="number" id="remise" class="form-control" value="0" oninput="calculerTout()">
-        </div>
+    <div class="flex flex-col lg:flex-row min-h-screen">
+        
+        <aside class="w-full lg:w-[400px] p-6 lg:p-8 bg-white border-r border-slate-200">
+            <div class="mb-10">
+                <h1 class="text-2xl font-black text-slate-900 leading-tight">CGI<br><span class="text-blue-600">Analytics Pro</span></h1>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-slate-50 p-6 rounded-[32px] border border-slate-100">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Prix Cible TTC</label>
+                    <div class="flex items-center">
+                        <input type="number" id="targetPrice" value="70" oninput="calculate()" class="bg-transparent text-5xl font-black text-slate-900 outline-none w-full">
+                        <span class="text-2xl font-bold text-slate-300">DH</span>
+                    </div>
+                </div>
+
+                <div class="gradient-bg p-8 rounded-[40px] text-white shadow-2xl shadow-blue-200 relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h3 class="text-xs font-bold opacity-60 uppercase mb-6 tracking-widest">Rentabilité Globale</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm opacity-80">Prix Fort Total</span>
+                            <span id="totalStrong" class="text-2xl font-black">0.00 DH</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-8">
+                            <span class="text-sm opacity-80">Remise (Effort)</span>
+                            <span id="totalDiscount" class="text-2xl font-black text-yellow-300">0%</span>
+                        </div>
+                        <button onclick="saveMenu()" class="w-full bg-white text-blue-900 font-extrabold py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm uppercase">Enregistrer ce Menu</button>
+                    </div>
+                </div>
+
+                <div class="p-2">
+                    <h3 class="text-[11px] font-black text-slate-400 uppercase mb-6 tracking-widest">Ventilation / Cuisine</h3>
+                    <div id="cuisineSummary" class="space-y-6">
+                        </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-6 lg:p-12 overflow-y-auto">
+            
+            <div class="flex justify-between items-center mb-10">
+                <div class="relative w-full max-w-xl">
+                    <input type="text" id="ingSearch" oninput="searchProduct()" placeholder="Rechercher un produit (Code ou Nom)..." 
+                           class="w-full p-5 pl-14 bg-white rounded-3xl shadow-sm border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none text-lg transition-all">
+                    <span class="absolute left-5 top-5 text-xl">🔍</span>
+                    <div id="suggestionBox" class="suggestion-box absolute top-full left-0 right-0 bg-white rounded-3xl mt-2 hidden shadow-2xl border border-slate-100 z-[60]"></div>
+                </div>
+                <div class="hidden lg:flex gap-4 ml-6">
+                    <button onclick="exportToExcel()" class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all font-bold text-sm">💾 Excel</button>
+                    <button onclick="resetApp()" class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:text-red-500 transition-all">🔄</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden mb-12">
+                <div class="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                    <input type="text" id="menuName" value="Menu Signature" class="bg-transparent font-black text-2xl text-slate-900 outline-none w-full border-b-2 border-transparent focus:border-blue-500">
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                                <th class="p-8">Article & Département</th>
+                                <th class="p-8 text-center">Prix Fort (DH)</th>
+                                <th class="p-8 text-center">Poids %</th>
+                                <th class="p-8 text-center text-blue-600">Ventilation (DH)</th>
+                                <th class="p-8"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="ingTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="col-span-full mb-2">
+                    <h3 class="text-lg font-black text-slate-900">Bibliothèque de Menus</h3>
+                </div>
+                <div id="savedMenus" class="contents"></div>
+            </div>
+        </main>
     </div>
 
-    <div class="mb-4 position-relative">
-        <h5>2. Ajouter des Ingrédients</h5>
-        <input type="text" id="searchBar" class="form-control" placeholder="Rechercher par Code ou Nom d'article..." onkeyup="rechercherArticle()">
-        <ul id="resultatsRecherche" class="list-group search-results"></ul>
-    </div>
+    <script>
+        // --- LOGIQUE CORE (Gardée identique mais enrichie visuellement) ---
+        let baseData = JSON.parse(localStorage.getItem('cgi_base')) || [];
+        let currentSelection = [];
+        let menuHistory = JSON.parse(localStorage.getItem('cgi_history')) || [];
 
-    <table class="table table-bordered table-striped mt-4">
-        <thead class="table-dark">
-            <tr>
-                <th>Code</th>
-                <th>Article</th>
-                <th>Prix Achat</th>
-                <th>Ratio (%)</th>
-                <th>Part du PV TTC (€)</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody">
-            </tbody>
-        <tfoot class="table-secondary fw-bold">
-            <tr>
-                <td colspan="2">Total Coût Ingrédients</td>
-                <td id="totalAchat">0.00</td>
-                <td>100%</td>
-                <td id="totalPv">0.00</td>
-                <td></td>
-            </tr>
-        </tfoot>
-    </table>
+        if(baseData.length === 0) document.getElementById('setupScreen').classList.remove('hidden');
 
-    <div class="text-center mt-4">
-        <button class="btn btn-success" onclick="exporterExcel()">Télécharger la Fiche (Excel)</button>
-    </div>
-</div>
-
-<script>
-    let baseArticles = [];
-    let ingredientsPlat = [];
-
-    // --- LOGIQUE EXCEL : LECTURE ---
-    document.getElementById('uploadExcel').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            baseArticles = XLSX.utils.sheet_to_json(firstSheet);
-            alert("Base chargée : " + baseArticles.length + " articles trouvés.");
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
-    // --- RECHERCHE AVANCÉE ---
-    function rechercherArticle() {
-        const query = document.getElementById('searchBar').value.toLowerCase();
-        const resultsBox = document.getElementById('resultatsRecherche');
-        resultsBox.innerHTML = "";
-
-        if (query.length < 2) return;
-
-        const filtres = baseArticles.filter(item => 
-            (item.Article && item.Article.toString().toLowerCase().includes(query)) || 
-            (item.Code && item.Code.toString().toLowerCase().includes(query))
-        );
-
-        filtres.slice(0, 5).forEach(item => {
-            let li = document.createElement('li');
-            li.className = "list-group-item list-group-item-action";
-            li.style.cursor = "pointer";
-            li.innerHTML = `<strong>${item.Code}</strong> - ${item.Article} (${item.Prix}€)`;
-            li.onclick = () => ajouterIngredient(item);
-            resultsBox.appendChild(li);
-        });
-    }
-
-    // --- GESTION DU TABLEAU ---
-    function ajouterIngredient(article) {
-        ingredientsPlat.push({...article});
-        document.getElementById('searchBar').value = "";
-        document.getElementById('resultatsRecherche').innerHTML = "";
-        calculerTout();
-    }
-
-    function supprimerIngredient(index) {
-        ingredientsPlat.splice(index, 1);
-        calculerTout();
-    }
-
-    // --- CALCULS MATHÉMATIQUES ---
-    function calculerTout() {
-        const pvTtcInitial = parseFloat(document.getElementById('pvTtc').value) || 0;
-        const remisePourcent = parseFloat(document.getElementById('remise').value) || 0;
-        const pvTtcApresRemise = pvTtcInitial * (1 - remisePourcent / 100);
-
-        const totalAchat = ingredientsPlat.reduce((sum, item) => sum + (parseFloat(item.Prix) || 0), 0);
-        const tableBody = document.getElementById('tableBody');
-        tableBody.innerHTML = "";
-
-        ingredientsPlat.forEach((item, index) => {
-            const prixAchat = parseFloat(item.Prix) || 0;
-            const ratio = totalAchat > 0 ? (prixAchat / totalAchat) : 0;
-            const partPv = pvTtcApresRemise * ratio;
-
-            let row = `<tr>
-                <td>${item.Code}</td>
-                <td>${item.Article}</td>
-                <td>${prixAchat.toFixed(2)}</td>
-                <td>${(ratio * 100).toFixed(1)}%</td>
-                <td>${partPv.toFixed(2)}</td>
-                <td><button class="btn btn-danger btn-sm" onclick="supprimerIngredient(${index})">X</button></td>
-            </tr>`;
-            tableBody.innerHTML += row;
-        });
-
-        document.getElementById('totalAchat').innerText = totalAchat.toFixed(2) + " €";
-        document.getElementById('totalPv').innerText = pvTtcApresRemise.toFixed(2) + " € (après remise)";
-    }
-
-    // --- EXPORT EXCEL ---
-    function exporterExcel() {
-        const plat = document.getElementById('platNom').value || "Fiche_Technique";
-        const data = ingredientsPlat.map(item => {
-            const totalAchat = ingredientsPlat.reduce((sum, i) => sum + (parseFloat(i.Prix) || 0), 0);
-            const ratio = totalAchat > 0 ? (parseFloat(item.Prix) / totalAchat) : 0;
-            const pvTtc = parseFloat(document.getElementById('pvTtc').value) || 0;
-            return {
-                "Plat": plat,
-                "Code": item.Code,
-                "Article": item.Article,
-                "Prix Achat": item.Prix,
-                "Ratio (%)": (ratio * 100).toFixed(2),
-                "Part du PV TTC": (pvTtc * ratio).toFixed(2)
+        function handleFileUpload() {
+            const file = document.getElementById('excelFile').files[0];
+            if(!file) return alert("Fichier manquant.");
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type:'array'}).SheetNames[0]]);
+                baseData = json.map(r => {
+                    const cleanRow = {};
+                    Object.keys(r).forEach(k => cleanRow[k.trim().toLowerCase()] = r[k]);
+                    return {
+                        code: r['Code'] || cleanRow['code'] || '',
+                        nom: r['Nom'] || cleanRow['nom'] || '',
+                        cuisine: r['Cuisine'] || cleanRow['cuisine'] || 'Non défini',
+                        prixTTC: parseFloat(r['Prix vente TTC'] || cleanRow['prix vente ttc']) || 0
+                    };
+                });
+                localStorage.setItem('cgi_base', JSON.stringify(baseData));
+                location.reload();
             };
-        });
+            reader.readAsArrayBuffer(file);
+        }
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Calculs");
-        XLSX.writeFile(wb, `${plat}_Calcul.xlsx`);
-    }
-</script>
+        function searchProduct() {
+            const term = document.getElementById('ingSearch').value.toLowerCase();
+            const box = document.getElementById('suggestionBox');
+            if(term.length < 1) { box.classList.add('hidden'); return; }
+            const matches = baseData.filter(p => (p.nom && p.nom.toLowerCase().includes(term)) || (p.code && p.code.toString().includes(term))).slice(0, 15);
+            box.classList.toggle('hidden', matches.length === 0);
+            box.innerHTML = matches.map(m => `
+                <div onclick="addToMenu('${m.code}')" class="p-5 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex justify-between items-center group transition-all">
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 group-hover:text-blue-600">${m.nom}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase mt-1">${m.cuisine}</div>
+                    </div>
+                    <div class="text-sm font-black text-slate-900">${m.prixTTC.toFixed(2)} DH</div>
+                </div>`).join('');
+        }
 
+        function addToMenu(code) {
+            const product = baseData.find(p => p.code == code);
+            if(product) {
+                currentSelection.push({ ...product, uniqueId: Date.now(), manualVenti: null });
+                document.getElementById('ingSearch').value = "";
+                document.getElementById('suggestionBox').classList.add('hidden');
+                calculate();
+            }
+        }
+
+        function calculate() {
+            const target = parseFloat(document.getElementById('targetPrice').value) || 0;
+            let totalStrong = 0;
+            currentSelection.forEach(item => totalStrong += item.prixTTC);
+
+            document.getElementById('totalStrong').innerText = totalStrong.toFixed(2) + " DH";
+            document.getElementById('totalDiscount').innerText = (totalStrong > 0 ? ((totalStrong - target) / totalStrong * 100) : 0).toFixed(1) + "%";
+
+            const cuisRecap = {};
+            currentSelection.forEach(item => {
+                const ratio = totalStrong > 0 ? (item.prixTTC / totalStrong) : 0;
+                item.ventilation = item.manualVenti !== null ? item.manualVenti : (target * ratio);
+                item.ventiPercent = target > 0 ? (item.ventilation / target * 100) : 0;
+                if(!cuisRecap[item.cuisine]) cuisRecap[item.cuisine] = 0;
+                cuisRecap[item.cuisine] += item.ventilation;
+            });
+
+            renderTable();
+            renderCuisineRecap(cuisRecap, target);
+        }
+
+        function renderTable() {
+            const table = document.getElementById('ingTable');
+            table.innerHTML = currentSelection.map(item => `
+                <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all">
+                    <td class="p-8">
+                        <div class="text-sm font-extrabold text-slate-900">${item.nom}</div>
+                        <div class="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-widest">${item.cuisine}</div>
+                    </td>
+                    <td class="p-8">
+                        <input type="number" value="${item.prixTTC.toFixed(2)}" 
+                               oninput="editPrice(${item.uniqueId}, this.value)" class="w-full bg-slate-50 border-none rounded-xl p-3 text-center font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="p-8 text-center text-[10px] font-black text-slate-300 uppercase">
+                        ${item.ventiPercent.toFixed(1)}%
+                    </td>
+                    <td class="p-8">
+                        <input type="number" value="${item.ventilation.toFixed(2)}" 
+                               oninput="editVenti(${item.uniqueId}, this.value)" class="w-full bg-blue-50 border-none rounded-xl p-3 text-center font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="p-8 text-right">
+                        <button onclick="removeFromMenu(${item.uniqueId})" class="text-slate-300 hover:text-red-500 transition-colors">✕</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function renderCuisineRecap(data, target) {
+            const container = document.getElementById('cuisineSummary');
+            container.innerHTML = Object.entries(data).map(([name, val]) => `
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-black text-slate-500 uppercase">${name}</span>
+                        <span class="text-sm font-black text-slate-900">${val.toFixed(2)} DH</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div class="bg-blue-600 h-full transition-all duration-500" style="width: ${(val/target*100).toFixed(0)}%"></div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function editPrice(uid, val) { const i = currentSelection.find(x=>x.uniqueId==uid); if(i){i.prixTTC=parseFloat(val)||0; calculate();} }
+        function editVenti(uid, val) { const i = currentSelection.find(x=>x.uniqueId==uid); if(i){i.manualVenti=parseFloat(val)||0; calculate();} }
+        function removeFromMenu(uid) { currentSelection = currentSelection.filter(i => i.uniqueId !== uid); calculate(); }
+
+        function saveMenu() {
+            if(currentSelection.length === 0) return;
+            const menu = { id: Date.now(), name: document.getElementById('menuName').value, date: new Date().toLocaleDateString(), target: parseFloat(document.getElementById('targetPrice').value), totalS: parseFloat(document.getElementById('totalStrong').innerText), discount: document.getElementById('totalDiscount').innerText, items: JSON.parse(JSON.stringify(currentSelection)) };
+            const idx = menuHistory.findIndex(m => m.id === menu.id);
+            if(idx > -1) menuHistory[idx] = menu; else menuHistory.unshift(menu);
+            localStorage.setItem('cgi_history', JSON.stringify(menuHistory));
+            renderHistory();
+            currentSelection = [];
+            calculate();
+        }
+
+        function loadForEdit(idx) {
+            const m = menuHistory[idx];
+            document.getElementById('menuName').value = m.name;
+            document.getElementById('targetPrice').value = m.target;
+            currentSelection = JSON.parse(JSON.stringify(m.items));
+            calculate();
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('savedMenus');
+            container.innerHTML = menuHistory.map((m, idx) => `
+                <div class="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm card-hover relative group">
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="bg-blue-50 text-blue-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">${m.date}</div>
+                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onclick="loadForEdit(${idx})" class="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600">✏️</button>
+                            <button onclick="deleteHistory(${idx})" class="p-2 bg-slate-100 rounded-lg hover:bg-red-100 text-red-500">✕</button>
+                        </div>
+                    </div>
+                    <h4 class="text-lg font-extrabold text-slate-900 mb-6 leading-tight">${m.name}</h4>
+                    <div class="flex justify-between items-center py-4 border-t border-slate-50">
+                        <span class="text-sm font-bold text-slate-400">70 DH</span>
+                        <span class="text-sm font-black text-red-500">-${m.discount}</span>
+                    </div>
+                </div>`).join('');
+        }
+
+        function deleteHistory(idx) { if(confirm("Supprimer ?")) { menuHistory.splice(idx,1); localStorage.setItem('cgi_history', JSON.stringify(menuHistory)); renderHistory(); } }
+        function exportToExcel() { /* ... Code export précédent ... */ }
+        function resetApp() { if(confirm("Reset ?")) { localStorage.clear(); location.reload(); } }
+
+        renderHistory();
+    </script>
 </body>
 </html>
